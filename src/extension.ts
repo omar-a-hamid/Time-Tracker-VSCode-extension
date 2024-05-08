@@ -19,9 +19,9 @@ let killFlag: boolean = false;
 
 export function activate(context: vscode.ExtensionContext) {
 
-	fs.appendFileSync(summaryFilePath, `\n[${new Date().toISOString()}] started a new logging session:\n`);
-	fs.appendFileSync(logFilePath, `\n[${new Date().toISOString()}] started a new logging session:\n`);
-	fs.appendFileSync(gitBranchesFilePath, `\n[${new Date().toISOString()}] started a new logging session:\n`);
+	fs.appendFileSync(summaryFilePath, `\n[${getTime()}] started a new logging session:\n`);
+	fs.appendFileSync(logFilePath, `\n[${getTime()}] started a new logging session:\n`);
+	fs.appendFileSync(gitBranchesFilePath, `\n[${getTime()}] started a new logging session:\n`);
 
 
     vscode.window.onDidChangeActiveTextEditor(editor => {
@@ -125,11 +125,16 @@ function msToTime(duration: number): string {
 }
 
 function logGitBranches(msg: string) {
-    fs.appendFileSync(gitBranchesFilePath, `[${new Date().toISOString()}] ${msg}\n`);
+    fs.appendFileSync(gitBranchesFilePath, `[${getTime()}] ${msg}\n`);
 }
 
 function log(message: string) {
-    fs.appendFileSync(logFilePath, `[${new Date().toISOString()}] ${message}\n`);
+    fs.appendFileSync(logFilePath, `[${getTime()}] ${message}\n`);
+    
+}
+
+function getTime(){
+    return new Date().toLocaleString();
 }
 
 export function deactivate() {
@@ -157,7 +162,7 @@ function finalizeBranchTracking(){
 function writeSummary() {
     const sortedFiles = Object.entries(files).sort((a, b) => b[1] - a[1]);
     const sortedBranches = Object.entries(branches).sort((a, b) => b[1].elapsedTime - a[1].elapsedTime);
-	fs.appendFileSync(summaryFilePath, `\n[${new Date().toISOString()}] Time summary:\n`);
+	fs.appendFileSync(summaryFilePath, `\n[${getTime()}] Time summary:\n`);
 
     fs.appendFileSync(summaryFilePath, `\nBranches:\n`);
     sortedBranches.forEach(([branch, data]) => {
