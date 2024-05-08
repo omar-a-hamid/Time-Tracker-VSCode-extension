@@ -13,6 +13,9 @@ let startTime: number | null = null;
 let currentBranch: string | null = null;
 let files: { [key: string]: number } = {};
 let branches: { [key: string]: { startTime: number, elapsedTime: number } } = {};
+let intervalId: string | number | NodeJS.Timeout | undefined;
+let intervalId2: string | number | NodeJS.Timeout | undefined;
+let killFlag: boolean = false;
 
 export function activate(context: vscode.ExtensionContext) {
 
@@ -30,12 +33,14 @@ export function activate(context: vscode.ExtensionContext) {
                 }
                 startTracking(newActiveFile);
             }
+            if(currentBranch==null){
+                trackGitBranch();
+            }
         }
     });
 
     // context.subscriptions.push(vscode.commands.registerCommand('extension.stopTracking', stopTracking));
 
-    trackGitBranch();
 
     let disposable = vscode.commands.registerCommand('extension.stopTracking', () => deactivate());
 
@@ -43,23 +48,24 @@ export function activate(context: vscode.ExtensionContext) {
 }
 
 async function trackGitBranch() {
+    
     const branch = await git.branchLocal();
     currentBranch = branch.current;
     log(`Current Git branch: ${currentBranch}`);
     startBranchTracking(currentBranch);
-    git.raw(['checkout', '-b', currentBranch]); // Listen for branch change events
-    git.checkout(currentBranch);
-    git.raw(['checkout', '-']); // Return to previous branch
-    setInterval(async () => {
-        const newBranch = await git.branchLocal();
-        if (newBranch.current !== currentBranch) {
-            log(`Switched to branch ${newBranch.current}`);
-            stopBranchTracking(currentBranch);
-            currentBranch = newBranch.current;
-            startBranchTracking(currentBranch);
-            // logGitBranches(currentBranch);
-        }
-    }, 10000); // Check every 10 seconds
+    intervalId = setInterval(intervalFunction , 10000); // Check every 10 seconds
+}
+
+async function intervalFunction(){
+    const newBranch = await git.branchLocal();
+    if (newBranch.current !== currentBranch) {
+        log(`Switched to branch ${newBranch.current}`);
+        stopBranchTracking(currentBranch);
+        currentBranch = newBranch.current;
+        startBranchTracking(currentBranch);
+        // logGitBranches(currentBranch);
+    }
+
 }
 
 function startBranchTracking(branch: string) {
@@ -81,6 +87,7 @@ function stopBranchTracking(branch: string | null) {
 		logGitBranches(`tracking time for ${branch}. Elapsed time: ${msToTime( branches[branch].elapsedTime)}`);
 
     }
+    currentBranch = null;
 }
 
 function startTracking(file: string) {
@@ -117,8 +124,8 @@ function msToTime(duration: number): string {
     return hoursStr + ":" + minutesStr + ":" + secondsStr;
 }
 
-function logGitBranches(branch: string) {
-    fs.appendFileSync(gitBranchesFilePath, `[${new Date().toISOString()}] ${branch}\n`);
+function logGitBranches(msg: string) {
+    fs.appendFileSync(gitBranchesFilePath, `[${new Date().toISOString()}] ${msg}\n`);
 }
 
 function log(message: string) {
@@ -136,7 +143,14 @@ export function deactivate() {
 function finalize(){
 
     files = {};
+    finalizeBranchTracking();
+
+}
+
+function finalizeBranchTracking(){
+
     branches = {};
+    clearInterval(intervalId);
 
 }
 
@@ -159,4 +173,6 @@ function writeSummary() {
 	fs.appendFileSync(summaryFilePath, `\n`);
 
     log(`Summary written to ${summaryFilePath}`);
+    logGitBranches(`Summary written to ${summaryFilePath}`);
+    
 }
