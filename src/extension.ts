@@ -3,6 +3,10 @@ import * as fs from 'fs';
 import * as path from 'path';
 import simpleGit, { SimpleGit } from 'simple-git';
 
+const folderPathArr = vscode.workspace.workspaceFolders;
+const folderPath = folderPathArr?.[0]?.uri.fsPath.concat("\\");
+
+
 const logFilePath = path.join(vscode.workspace.rootPath ?? '', 'time-tracker/time-tracker.log');
 const gitBranchesFilePath = path.join(vscode.workspace.rootPath ?? '', 'time-tracker/git-branches.log');
 const summaryFilePath = path.join(vscode.workspace.rootPath ?? '', 'time-tracker/time-summary.log');
@@ -17,16 +21,22 @@ let intervalId: string | number | NodeJS.Timeout | undefined;
 let intervalId2: string | number | NodeJS.Timeout | undefined;
 let killFlag: boolean = false;
 
+const COMMON_PACKAGE_NAME = "src\\main\\java\\com\\siemens\\iess\\";
+
 export function activate(context: vscode.ExtensionContext) {
 
 	fs.appendFileSync(summaryFilePath, `\n[${getTime()}] started a new logging session:\n`);
 	fs.appendFileSync(logFilePath, `\n[${getTime()}] started a new logging session:\n`);
 	fs.appendFileSync(gitBranchesFilePath, `\n[${getTime()}] started a new logging session:\n`);
 
+    // log(`fileName ${folderPath}`);
+    // console.log(folderPath);
+
+
 
     vscode.window.onDidChangeActiveTextEditor(editor => {
         if (editor) {
-            const newActiveFile = editor.document.fileName;
+            const newActiveFile = editor.document.fileName.replace(String(folderPath),"").replace(COMMON_PACKAGE_NAME,"");
             if (newActiveFile !== activeFile) {
                 if (activeFile) {
                     stopTracking();
@@ -71,7 +81,12 @@ async function intervalFunction(){
 function startBranchTracking(branch: string) {
 
 	logGitBranches(`Started tracking time for ${branch}`);
-    branches[branch] = { startTime: Date.now(), elapsedTime: 0 };
+
+    if(branches[branch]==null){
+        branches[branch] = { startTime: Date.now(), elapsedTime: 0 };
+    }else{
+        branches[branch].startTime = Date.now();
+    }
 }
 
 function stopBranchTracking(branch: string | null) {
@@ -79,12 +94,14 @@ function stopBranchTracking(branch: string | null) {
 		branch = currentBranch??"null";
 	}
     if (branches[branch] && branches[branch].startTime) {
+
+        const elapsedTime = Date.now() - branches[branch].startTime;
         branches[branch].elapsedTime += Date.now() - branches[branch].startTime;
         branches[branch].startTime = 0; // Reset startTime to indicate not tracking
         // const endTime = Date.now();
 		// const elapsedTime = endTime - (branches[branch].startTime ?? endTime);
-		log(`Stopped tracking time for ${branch}. Elapsed time: ${msToTime( branches[branch].elapsedTime)}`);
-		logGitBranches(`tracking time for ${branch}. Elapsed time: ${msToTime( branches[branch].elapsedTime)}`);
+		log(`Stopped tracking time for ${branch}. Elapsed time: ${msToTime( elapsedTime)}`);
+		logGitBranches(`tracking time for ${branch}. Elapsed time: ${msToTime( elapsedTime)}`);
 
     }
     currentBranch = null;
@@ -162,9 +179,12 @@ function finalizeBranchTracking(){
 function writeSummary() {
     const sortedFiles = Object.entries(files).sort((a, b) => b[1] - a[1]);
     const sortedBranches = Object.entries(branches).sort((a, b) => b[1].elapsedTime - a[1].elapsedTime);
-	fs.appendFileSync(summaryFilePath, `\n[${getTime()}] Time summary:\n`);
+    let totalTime =0;
+    sortedBranches.forEach(([branch,data]) => {totalTime+=data.elapsedTime})
+	fs.appendFileSync(summaryFilePath, `[${getTime()}] Time summary:\n`);
+	fs.appendFileSync(summaryFilePath, `Total Time: ${msToTime(totalTime)}\n`);
 
-    fs.appendFileSync(summaryFilePath, `\nBranches:\n`);
+    fs.appendFileSync(summaryFilePath, `Branches:\n`);
     sortedBranches.forEach(([branch, data]) => {
         fs.appendFileSync(summaryFilePath, `${branch}: ${msToTime(data.elapsedTime)}\n`);
     });
