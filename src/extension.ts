@@ -2,15 +2,16 @@ import * as vscode from 'vscode';
 import * as fs from 'fs';
 import * as path from 'path';
 import simpleGit, { SimpleGit } from 'simple-git';
+import { create } from 'domain';
 
 const folderPathArr = vscode.workspace.workspaceFolders;
 const folderPath = folderPathArr?.[0]?.uri.fsPath.concat("\\");
-
-
-const logFilePath = path.join(vscode.workspace.rootPath ?? '', 'time-tracker/time-tracker.log');
-const gitBranchesFilePath = path.join(vscode.workspace.rootPath ?? '', 'time-tracker/git-branches.log');
-const summaryFilePath = path.join(vscode.workspace.rootPath ?? '', 'time-tracker/time-summary.log');
-const git: SimpleGit = simpleGit(vscode.workspace.rootPath ?? '');
+const logDirName = "time-tracker/";
+const logDir = path.join(folderPath??"",logDirName);
+const logFilePath = path.join( logDir,'time-tracker.log');
+const gitBranchesFilePath = path.join(logDir, 'git-branches.log');
+const summaryFilePath = path.join(logDir,'time-summary.log');
+const git: SimpleGit = simpleGit(folderPath);
 
 let activeFile: string | null = null;
 let startTime: number | null = null;
@@ -20,10 +21,36 @@ let branches: { [key: string]: { startTime: number, elapsedTime: number } } = {}
 let intervalId: string | number | NodeJS.Timeout | undefined;
 let intervalId2: string | number | NodeJS.Timeout | undefined;
 let killFlag: boolean = false;
+let isPaused: boolean = false;
+let createDir: boolean| null = null;
+let intervalIdForResponse: string | number | NodeJS.Timeout | undefined;
+let resumeResponse: boolean | null = null;
 
 const COMMON_PACKAGE_NAME = "src\\main\\java\\com\\siemens\\iess\\";
 
-export function activate(context: vscode.ExtensionContext) {
+export async function activate(context: vscode.ExtensionContext) {
+
+    if(folderPath==null || logDir==null){
+        showMsg(`this directory does not support logging check for ${logDirName} existence`);
+        return;
+    }
+    if(!folderExists(logDir)){
+
+        await showCreateDirPrompt();
+   
+        // intervalIdForResponse = setInterval(waitForUserResponse,50);
+        if(createDir==true){
+            createLogDir(logDir);
+            
+        }else{
+            showMsg("end log");
+            return;
+        }
+        
+    }
+ 
+
+    showMsg(`started logging session, saving to ${logDir}`);
 
 	fs.appendFileSync(summaryFilePath, `\n[${getTime()}] started a new logging session:\n`);
 	fs.appendFileSync(logFilePath, `\n[${getTime()}] started a new logging session:\n`);
@@ -34,8 +61,15 @@ export function activate(context: vscode.ExtensionContext) {
 
 
 
-    vscode.window.onDidChangeActiveTextEditor(editor => {
+    vscode.window.onDidChangeActiveTextEditor(async editor => {
         if (editor) {
+            if(isPaused==true){
+                await promptResume();
+                if(resumeResponse!=true){
+                    return;
+                }
+                isPaused =false;
+            }
             const newActiveFile = editor.document.fileName.replace(String(folderPath),"").replace(COMMON_PACKAGE_NAME,"");
             if (newActiveFile !== activeFile) {
                 if (activeFile) {
@@ -159,7 +193,14 @@ export function deactivate() {
 	stopBranchTracking(null);
     writeSummary();
     finalize();
+    showMsg(`ended logging session, saving to ${logDir}`);
     
+}
+
+function resumeLogging(){
+    isPaused = false;
+    showMsg(`resumed logging session, saving to ${logDir}`);
+
 }
 
 function finalize(){
@@ -176,7 +217,14 @@ function finalizeBranchTracking(){
 
 }
 
+function showMsg(msg: string){
+
+    vscode.window.showInformationMessage(msg);
+
+}
+
 function writeSummary() {
+    isPaused = true;
     const sortedFiles = Object.entries(files).sort((a, b) => b[1] - a[1]);
     const sortedBranches = Object.entries(branches).sort((a, b) => b[1].elapsedTime - a[1].elapsedTime);
     let totalTime =0;
@@ -200,4 +248,61 @@ function writeSummary() {
     log(`Summary written to ${summaryFilePath}`);
     logGitBranches(`Summary written to ${summaryFilePath}`);
     
+}
+
+function folderExists(path: string): boolean {
+    try {
+        // Check if the path exists and is a directory
+        return fs.statSync(path).isDirectory();
+    } catch (error) {
+        // Handle errors (e.g., folder does not exist)
+        return false;
+    }
+}
+
+async function showCreateDirPrompt(){
+
+    await vscode.window.showWarningMessage(
+        'Directory does not exist. Do you want to create it?',
+        'Yes',
+        'No'
+    ).then(selectedAction => {
+        createDir = selectedAction === 'Yes';
+    });
+
+    
+}
+
+async function promptResume(){
+    await vscode.window.showWarningMessage(
+        'resume tracking?',
+        'Yes',
+        'No'
+    ).then(selectedAction => {
+        resumeResponse = selectedAction === 'Yes';
+    });
+}
+
+// async function waitForUserResponse(): Promise<void> {
+//     while (createDir === null) {
+//         await new Promise(resolve => setTimeout(resolve, 5000)); // Wait for a short duration
+//     }
+// }
+
+function waitForUserResponse(){
+    if(createDir!=null){
+        clearInterval(intervalIdForResponse);
+    }
+}
+
+
+function createLogDir(dir: string){
+
+    fs.mkdir(dir, (err) => {
+        if (err) {
+            console.error('Error creating directory:', err);
+        } else {
+            console.log('Directory created successfully.');
+        }
+    });
 }

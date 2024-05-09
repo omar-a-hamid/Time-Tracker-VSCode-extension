@@ -16,10 +16,6 @@
   "contributes": {
     "commands": [
       {
-        "command": "extension.startTracking",
-        "title": "Start Tracking"
-      },
-      {
         "command": "extension.stopTracking",
         "title": "Stop Tracking"
       }
