@@ -10,14 +10,27 @@
     "Other"
   ],
   "activationEvents": [
-    "onStartupFinished"
+    "onStartupFinished",
+    "onCommand:myExtension.startTracking"
   ],
   "main": "./out/extension.js",
   "contributes": {
     "commands": [
       {
         "command": "extension.stopTracking",
-        "title": "Stop Tracking"
+        "title": "time-analytics: Stop Tracking"
+      },
+      {
+        "command": "extension.pauseTracking",
+        "title": "time-analytics: Pause Tracking"
+      },
+      {
+        "command": "extension.resumeTracking",
+        "title": "time-analytics: Resume Tracking"
+      },
+      {
+        "command": "extension.startTracking",
+        "title": "time-analytics: Start Tracking"
       }
     ]
   },

@@ -23,12 +23,36 @@ let intervalId2: string | number | NodeJS.Timeout | undefined;
 let killFlag: boolean = false;
 let isPaused: boolean = false;
 let createDir: boolean| null = null;
+let startLogging: boolean| null = null;
+
 let intervalIdForResponse: string | number | NodeJS.Timeout | undefined;
 let resumeResponse: boolean | null = null;
+
+let changeEditorEvent:vscode.Disposable;
+
+let promptResumeEvent:vscode.Disposable;
+
+let hasResponded: boolean|null =null;
+
 
 const COMMON_PACKAGE_NAME = "src\\main\\java\\com\\siemens\\iess\\";
 
 export async function activate(context: vscode.ExtensionContext) {
+
+    let disposableStart = vscode.commands.registerCommand('extension.startTracking', () => startExtension());
+    let disposable = vscode.commands.registerCommand('extension.pauseTracking', () => pause());
+    let disposableStop = vscode.commands.registerCommand('extension.stopTracking', () => deactivate());
+    let disposableResume = vscode.commands.registerCommand('extension.resumeTracking', () => resumeTracking());
+
+
+
+    context.subscriptions.push(disposable);
+    context.subscriptions.push(disposableStop);
+    context.subscriptions.push(disposableResume);
+    context.subscriptions.push(disposableStart);
+    context.subscriptions.push(changeEditorEvent);
+
+    // context.subscriptions.
 
     if(folderPath==null || logDir==null){
         showMsg(`this directory does not support logging check for ${logDirName} existence`);
@@ -48,24 +72,62 @@ export async function activate(context: vscode.ExtensionContext) {
         }
         
     }
+
+    await promptStart();
+    if(startLogging!=true){
+        showMsg("end log");
+        return;
+    }
  
 
-    showMsg(`started logging session, saving to ${logDir}`);
 
+
+    startExtension();
+    
+
+}
+function resumeTracking(){
+    isPaused = false;
+    // startTimeTracking();
+}
+
+async function promptStart(){
+
+    await vscode.window.showWarningMessage(
+        'Start time tracking?',
+        'Yes',
+        'No'
+    ).then(selectedAction => {
+        startLogging = selectedAction === 'Yes';
+    });
+
+
+}
+function startExtension(){
+
+    showMsg(`started logging session, saving to ${logDir}`);
 	fs.appendFileSync(summaryFilePath, `\n[${getTime()}] started a new logging session:\n`);
 	fs.appendFileSync(logFilePath, `\n[${getTime()}] started a new logging session:\n`);
 	fs.appendFileSync(gitBranchesFilePath, `\n[${getTime()}] started a new logging session:\n`);
 
-    // log(`fileName ${folderPath}`);
-    // console.log(folderPath);
+    
+    isPaused = false;
+    startTimeTracking();
 
+}
 
+function startTimeTracking(){
 
-    vscode.window.onDidChangeActiveTextEditor(async editor => {
+    
+    changeEditorEvent = vscode.window.onDidChangeActiveTextEditor(async editor => {
         if (editor) {
             if(isPaused==true){
+                
                 await promptResume();
-                if(resumeResponse!=true){
+                if(resumeResponse===false){
+                    deactivate();
+                    return;
+                }else if(resumeResponse===null){
                     return;
                 }
                 isPaused =false;
@@ -83,12 +145,8 @@ export async function activate(context: vscode.ExtensionContext) {
         }
     });
 
-    // context.subscriptions.push(vscode.commands.registerCommand('extension.stopTracking', stopTracking));
 
 
-    let disposable = vscode.commands.registerCommand('extension.stopTracking', () => deactivate());
-
-    context.subscriptions.push(disposable);
 }
 
 async function trackGitBranch() {
@@ -189,12 +247,22 @@ function getTime(){
 }
 
 export function deactivate() {
+
+    changeEditorEvent.dispose();
+    if(isPaused===false){
+
+        pause();
+    }
+
+}
+
+function pause(){
+    isPaused = true;
     stopTracking();
 	stopBranchTracking(null);
     writeSummary();
     finalize();
     showMsg(`ended logging session, saving to ${logDir}`);
-    
 }
 
 function resumeLogging(){
@@ -224,7 +292,7 @@ function showMsg(msg: string){
 }
 
 function writeSummary() {
-    isPaused = true;
+    
     const sortedFiles = Object.entries(files).sort((a, b) => b[1] - a[1]);
     const sortedBranches = Object.entries(branches).sort((a, b) => b[1].elapsedTime - a[1].elapsedTime);
     let totalTime =0;
@@ -274,13 +342,23 @@ async function showCreateDirPrompt(){
 }
 
 async function promptResume(){
+
+    hasResponded = false;
     await vscode.window.showWarningMessage(
         'resume tracking?',
         'Yes',
-        'No'
+        'No',
     ).then(selectedAction => {
-        resumeResponse = selectedAction === 'Yes';
+        if(selectedAction==="Yes"){
+            resumeResponse = true;
+        }else if(selectedAction ==="No"){
+            resumeResponse= false;
+        }else{
+            resumeResponse = null;
+
+        }
     });
+    hasResponded=true;
 }
 
 // async function waitForUserResponse(): Promise<void> {
