@@ -4,6 +4,9 @@ import * as path from 'path';
 import simpleGit, { SimpleGit } from 'simple-git';
 import { create } from 'domain';
 
+// command to build: vsce package
+// command to install: code --install-extension time-analytics-0.0.1.vsix
+
 const folderPathArr = vscode.workspace.workspaceFolders;
 const folderPath = folderPathArr?.[0]?.uri.fsPath.concat("\\");
 const logDirName = "time-tracker/";
@@ -118,6 +121,10 @@ function startExtension(){
 
 function startTimeTracking(){
 
+    let firstFile = vscode.window.activeTextEditor?.document.fileName??"null";
+    firstFile = firstFile.replace(String(folderPath),"").replace(COMMON_PACKAGE_NAME,"");
+    startTracking(firstFile);
+    trackGitBranch();
     
     changeEditorEvent = vscode.window.onDidChangeActiveTextEditor(async editor => {
         if (editor) {
@@ -202,7 +209,7 @@ function stopBranchTracking(branch: string | null) {
 function startTracking(file: string) {
     activeFile = file;
     startTime = Date.now();
-    log(`Started tracking time for ${activeFile}`);
+    // log(`Started tracking time for ${activeFile}`);
 }
 
 function stopTracking() {
