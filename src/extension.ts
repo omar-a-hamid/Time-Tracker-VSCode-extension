@@ -73,7 +73,7 @@ export async function activate(context: vscode.ExtensionContext) {
 
         await showCreateDirPrompt();
    
-        if(createDir==true){
+        if(createDir===true){
             createLogDir(logDir);
             
         }else{
@@ -83,20 +83,25 @@ export async function activate(context: vscode.ExtensionContext) {
         
     }
 
-    await promptStart();
-    if(startLogging!=true){
-        showMsg("end log");
-        return;
-    }
- 
-
-
-    startExtension();
-    
+    checkStartLogging();
 
 }
+
+async function checkStartLogging(){
+
+    await promptStart();
+    if(startLogging===true){
+        startExtension();
+    }else{
+        showMsg("end log");
+
+    }
+
+} 
+
 function resumeTracking(){
     setState(ClockState.RUNNING);
+    editorChangeHandler();
 
 }
 
@@ -159,38 +164,49 @@ function startExtension(){
 
 function startTimeTracking(){
 
-    let firstFile = vscode.window.activeTextEditor?.document.fileName??"null";
-    firstFile = firstFile.replace(String(folderPath),"").replace(COMMON_PACKAGE_NAME,"");
+    let firstFile =  getCurrentFile()??"null";
+    
     startTracking(firstFile);
     trackGitBranch();
     
-    changeEditorEvent = vscode.window.onDidChangeActiveTextEditor(async editor => {
-        if (editor) {
-            if(clockState===ClockState.PAUSED){
-                
-                await promptResume();
-                if(resumeResponse===false){
-                    deactivate();
-                    return;
-                }else if(resumeResponse===null){
-                    return;
-                }
-                setState(ClockState.RUNNING);
-            }
-            const newActiveFile = editor.document.fileName.replace(String(folderPath),"").replace(COMMON_PACKAGE_NAME,"");
-            if (newActiveFile !== activeFile) {
-                if (activeFile) {
-                    stopTracking();
-                }
-                startTracking(newActiveFile);
-            }
-            if(currentBranch==null){
-                trackGitBranch();
-            }
+    changeEditorEvent = vscode.window.onDidChangeActiveTextEditor(async editor => editorChangeHandler());
+
+
+
+}
+
+function getCurrentFile():string|null{
+    return vscode.window.activeTextEditor?.document.fileName.replace(String(folderPath),"").replace(COMMON_PACKAGE_NAME,"")??null;
+}
+
+
+async function editorChangeHandler(){
+    let editorFileName = getCurrentFile(); 
+    if(editorFileName===null)
+        return;
+    if(clockState===ClockState.PAUSED){
+        
+        await promptResume();
+        if(resumeResponse===false){
+            deactivate();
+            return;
+        }else if(resumeResponse===null){
+            return;
+        }else{
+            resumeTracking();
         }
-    });
-
-
+        
+    }
+    const newActiveFile = editorFileName;
+    if (newActiveFile !== activeFile) {
+        if (activeFile) {
+            stopTracking();
+        }
+        startTracking(newActiveFile);
+    }
+    if(currentBranch==null){
+        trackGitBranch();
+    }
 
 }
 
