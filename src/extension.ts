@@ -39,8 +39,10 @@ let promptResumeEvent:vscode.Disposable;
 let hasResponded: boolean|null =null;
 let clock: Clock|null = null;
 
+let _context: vscode.ExtensionContext| null = null;
 
 const COMMON_PACKAGE_NAME = "src\\main\\java\\com\\siemens\\iess\\";
+
 
 export async function activate(context: vscode.ExtensionContext) {
 
@@ -51,11 +53,15 @@ export async function activate(context: vscode.ExtensionContext) {
 
 
 
+    // _context = context;
     context.subscriptions.push(disposable);
     context.subscriptions.push(disposableStop);
     context.subscriptions.push(disposableResume);
     context.subscriptions.push(disposableStart);
     context.subscriptions.push(changeEditorEvent);
+
+    clock = new Clock();
+
 
     // context.subscriptions.
 
@@ -86,7 +92,6 @@ export async function activate(context: vscode.ExtensionContext) {
  
 
 
-    clock = new Clock(context);
     startExtension();
     
 
@@ -117,6 +122,9 @@ function startExtension(){
 	fs.appendFileSync(logFilePath, `\n[${getTime()}] started a new logging session:\n`);
 	fs.appendFileSync(gitBranchesFilePath, `\n[${getTime()}] started a new logging session:\n`);
 
+    if(clock==null){
+        clock = new Clock();
+    }
     clock?.activate();
 
 
@@ -261,13 +269,15 @@ function getTime(){
 }
 
 export function deactivate() {
-    clock?.stop();
-    clock?.dispose();
+    
     changeEditorEvent.dispose();
     if(isPaused===false){
 
         pause();
     }
+    clock?.stop();
+    // clock?.dispose();
+
 
 }
 
