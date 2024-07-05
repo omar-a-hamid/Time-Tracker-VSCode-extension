@@ -65,9 +65,19 @@ export async function activate(context: vscode.ExtensionContext) {
 
     clock = new Clock();
 
+    const isValid = await validateFolder();
+    if(!isValid)
+        return;
+
+
+    checkStartLogging();
+
+}
+
+async function validateFolder():Promise<boolean> {
     if(folderPath==null || logDir==null){
         showMsg(`this directory does not support logging check for ${logDirName} existence`);
-        return;
+        return false;
     }
     if(!folderExists(logDir)){
 
@@ -78,12 +88,11 @@ export async function activate(context: vscode.ExtensionContext) {
             
         }else{
             showMsg("end log");
-            return;
+            return false;
         }
         
     }
-
-    checkStartLogging();
+    return true;
 
 }
 
@@ -132,7 +141,11 @@ async function promptStart(){
 
 
 }
-function startExtension(){
+async function startExtension(){
+
+    const isValid = await validateFolder();
+    if(!isValid)
+        return;
 
     if(clockState === ClockState.PAUSED){
         resumeTracking();
