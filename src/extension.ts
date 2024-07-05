@@ -25,7 +25,6 @@ let branches: { [key: string]: { startTime: number, elapsedTime: number } } = {}
 let intervalId: string | number | NodeJS.Timeout | undefined;
 let intervalId2: string | number | NodeJS.Timeout | undefined;
 let killFlag: boolean = false;
-let isPaused: boolean = false;
 let createDir: boolean| null = null;
 let startLogging: boolean| null = null;
 
@@ -58,7 +57,6 @@ export async function activate(context: vscode.ExtensionContext) {
 
     setState(ClockState.STOPPED);
 
-    // _context = context;
     context.subscriptions.push(disposable);
     context.subscriptions.push(disposableStop);
     context.subscriptions.push(disposableResume);
@@ -66,9 +64,6 @@ export async function activate(context: vscode.ExtensionContext) {
     context.subscriptions.push(changeEditorEvent);
 
     clock = new Clock();
-
-
-    // context.subscriptions.
 
     if(folderPath==null || logDir==null){
         showMsg(`this directory does not support logging check for ${logDirName} existence`);
@@ -78,7 +73,6 @@ export async function activate(context: vscode.ExtensionContext) {
 
         await showCreateDirPrompt();
    
-        // intervalIdForResponse = setInterval(waitForUserResponse,50);
         if(createDir==true){
             createLogDir(logDir);
             
@@ -102,11 +96,8 @@ export async function activate(context: vscode.ExtensionContext) {
 
 }
 function resumeTracking(){
-    isPaused = false;
     setState(ClockState.RUNNING);
-    // clock?.pause(false);
 
-    // startTimeTracking();
 }
 
 function setState(state: ClockState):boolean{
@@ -162,8 +153,6 @@ function startExtension(){
     clock?.activate();
 
 
-    
-    isPaused = false;
     startTimeTracking();
 
 }
@@ -221,7 +210,6 @@ async function intervalFunction(){
         stopBranchTracking(currentBranch);
         currentBranch = newBranch.current;
         startBranchTracking(currentBranch);
-        // logGitBranches(currentBranch);
     }
 
 }
@@ -246,8 +234,7 @@ function stopBranchTracking(branch: string | null) {
         const elapsedTime = Date.now() - branches[branch].startTime;
         branches[branch].elapsedTime += Date.now() - branches[branch].startTime;
         branches[branch].startTime = 0; // Reset startTime to indicate not tracking
-        // const endTime = Date.now();
-		// const elapsedTime = endTime - (branches[branch].startTime ?? endTime);
+
 		log(`Stopped tracking time for ${branch}. Elapsed time: ${msToTime( elapsedTime)}`);
 		logGitBranches(`tracking time for ${branch}. Elapsed time: ${msToTime( elapsedTime)}`);
 
@@ -258,7 +245,6 @@ function stopBranchTracking(branch: string | null) {
 function startTracking(file: string) {
     activeFile = file;
     startTime = Date.now();
-    // log(`Started tracking time for ${activeFile}`);
 }
 
 function stopTracking() {
@@ -309,33 +295,26 @@ export function deactivate() {
 
         pause();
     }
-    // clock?.stop();
+
     setState(ClockState.STOPPED);
-    // clock?.dispose();
+    showMsg(`ended logging session, saving to ${logDir}`);
 
 
 }
 
 function pause(){
-    // isPaused = true;
-    
+
+  
     if(!setState(ClockState.PAUSED)){
         return;
     }
-    // clock?.pause(true);
     stopTracking();
 	stopBranchTracking(null);
     writeSummary();
     finalize();
-    showMsg(`ended logging session, saving to ${logDir}`);
+    showMsg(`paused logging session, saving to ${logDir}`);
 }
 
-function resumeLogging(){
-    // isPaused = false;
-    // clock?.pause(false);
-    // showMsg(`resumed logging session, saving to ${logDir}`);
-
-}
 
 function finalize(){
 
@@ -425,18 +404,6 @@ async function promptResume(){
         }
     });
     hasResponded=true;
-}
-
-// async function waitForUserResponse(): Promise<void> {
-//     while (createDir === null) {
-//         await new Promise(resolve => setTimeout(resolve, 5000)); // Wait for a short duration
-//     }
-// }
-
-function waitForUserResponse(){
-    if(createDir!=null){
-        clearInterval(intervalIdForResponse);
-    }
 }
 
 
