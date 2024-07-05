@@ -3,7 +3,7 @@ import * as fs from 'fs';
 import * as path from 'path';
 import simpleGit, { SimpleGit } from 'simple-git';
 import { create } from 'domain';
-import { Clock } from './clock';
+import { Clock, ClockState } from './clock';
 
 // command to build: vsce package
 // command to install: code --install-extension time-analytics-0.0.1.vsix
@@ -41,6 +41,11 @@ let clock: Clock|null = null;
 
 let _context: vscode.ExtensionContext| null = null;
 
+let clockState: ClockState = ClockState.STOPPED;
+let prevState: ClockState|null = null; 
+
+
+
 const COMMON_PACKAGE_NAME = "src\\main\\java\\com\\siemens\\iess\\";
 
 
@@ -51,7 +56,7 @@ export async function activate(context: vscode.ExtensionContext) {
     let disposableStop = vscode.commands.registerCommand('extension.stopTracking', () => deactivate());
     let disposableResume = vscode.commands.registerCommand('extension.resumeTracking', () => resumeTracking());
 
-
+    setState(ClockState.STOPPED);
 
     // _context = context;
     context.subscriptions.push(disposable);
@@ -98,9 +103,25 @@ export async function activate(context: vscode.ExtensionContext) {
 }
 function resumeTracking(){
     isPaused = false;
-    clock?.pause(false);
+    setState(ClockState.RUNNING);
+    // clock?.pause(false);
 
     // startTimeTracking();
+}
+
+function setState(state: ClockState):boolean{
+
+    if(prevState === state){
+        return false;
+    }
+    clockState = state;
+    prevState = clockState; 
+
+
+
+    clockState = state;
+    clock?.setState(state);
+    return true;
 }
 
 async function promptStart(){
@@ -116,6 +137,19 @@ async function promptStart(){
 
 }
 function startExtension(){
+
+    if(clockState === ClockState.PAUSED){
+        resumeTracking();
+        return;
+    }
+   
+    
+    if(!setState(ClockState.RUNNING)){
+        // if no change, do nth
+        return;
+    }
+
+    
 
     showMsg(`started logging session, saving to ${logDir}`);
 	fs.appendFileSync(summaryFilePath, `\n[${getTime()}] started a new logging session:\n`);
@@ -143,7 +177,7 @@ function startTimeTracking(){
     
     changeEditorEvent = vscode.window.onDidChangeActiveTextEditor(async editor => {
         if (editor) {
-            if(isPaused==true){
+            if(clockState===ClockState.PAUSED){
                 
                 await promptResume();
                 if(resumeResponse===false){
@@ -152,7 +186,7 @@ function startTimeTracking(){
                 }else if(resumeResponse===null){
                     return;
                 }
-                isPaused =false;
+                setState(ClockState.RUNNING);
             }
             const newActiveFile = editor.document.fileName.replace(String(folderPath),"").replace(COMMON_PACKAGE_NAME,"");
             if (newActiveFile !== activeFile) {
@@ -271,19 +305,24 @@ function getTime(){
 export function deactivate() {
     
     changeEditorEvent.dispose();
-    if(isPaused===false){
+    if(clockState===ClockState.RUNNING){
 
         pause();
     }
-    clock?.stop();
+    // clock?.stop();
+    setState(ClockState.STOPPED);
     // clock?.dispose();
 
 
 }
 
 function pause(){
-    isPaused = true;
-    clock?.pause(true);
+    // isPaused = true;
+    
+    if(!setState(ClockState.PAUSED)){
+        return;
+    }
+    // clock?.pause(true);
     stopTracking();
 	stopBranchTracking(null);
     writeSummary();
@@ -292,9 +331,9 @@ function pause(){
 }
 
 function resumeLogging(){
-    isPaused = false;
+    // isPaused = false;
     // clock?.pause(false);
-    showMsg(`resumed logging session, saving to ${logDir}`);
+    // showMsg(`resumed logging session, saving to ${logDir}`);
 
 }
 

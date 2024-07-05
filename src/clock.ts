@@ -70,7 +70,7 @@ export class Clock {
         // this.clockStatusBarItem.command()
       
         // this.clockStatusBarItem.command= "extension.startTracking";
-        
+
         
 
         this.refreshUI();
@@ -103,6 +103,9 @@ export class Clock {
         this.clockStopBarItem.text = STOP_ICON;
         this.clockStopBarItem.tooltip = STOP_TOOL_TIP;
 
+        this.refreshButtons();
+
+
     }
 
     dispose() {
@@ -129,16 +132,11 @@ export class Clock {
         this.clockStatusBarItem.text = `${this.msToTime(this.elapsedTime)}`;
         // this.clockStatusBarItem.tooltip = this.getToolTip();
         // this.clockStatusBarItem.show();
-        this.refreshButtons();
+        // this.refreshButtons();
 
         
     }
     refreshButtons() {
-
-        if(this.prevState === this.clockState){
-            return;
-        }
-        this.prevState = this.clockState; 
 
         
 
@@ -202,49 +200,78 @@ export class Clock {
 
 
     stop(){
+
         this.beforePausedTime = 0;
         this.elapsedTime = 0
-        this.pause(null);
-        if (this.clockStatusBarItem) {
-            this.clockStatusBarItem.text = this.msToTime(0);
-        }
-        this.clockStatusBarItem?.show();
-        this.elapsedTime = 0;
         
-
-
     }
 
     setState(state: ClockState){
 
-        this.clockState = state;
-    }
-
-    pause(isPaused: boolean|null){
-        if(isPaused===this._isPaused){
+        
+        if(this.prevState === state){
             return;
         }
+        this.clockState = state;
+        this.prevState = this.clockState; 
 
-        this._isPaused = isPaused;
-        if(isPaused===true){
-            this.setState(ClockState.PAUSED);
-            this._startTime = null;
-            this.beforePausedTime = this.elapsedTime;
-            
-            
-        }
-        if(isPaused===false){//resumed
-            this.setState(ClockState.RUNNING);
-            this._startTime = Date.now();
-        }
-        if(isPaused===null){
-            this.setState(ClockState.STOPPED);
+
+
+        switch(state){
+            case ClockState.PAUSED:
+                this.pause();
+                break;
+            case ClockState.RUNNING:
+                this.resume();
+                break;
+            case ClockState.STOPPED:
+                this.stop();
+                break;
         }
         this.refreshUI();
+        this.refreshButtons();
 
     }
 
-    refreshCmd(){
+    private pause(){
+        this._startTime = null;
+        this.beforePausedTime = this.elapsedTime;
+
+    }
+
+    private resume(){
+        this._startTime = Date.now();
+    }
+
+
+
+    // private pause(isPaused: boolean|null){
+    //     if(isPaused===this._isPaused){
+    //         return;
+    //     }
+
+    //     this._isPaused = isPaused;
+    //     if(isPaused===true){
+    //         this.setState(ClockState.PAUSED);
+    //         this._startTime = null;
+    //         this.beforePausedTime = this.elapsedTime;
+            
+            
+    //     }
+    //     if(isPaused===false){//resumed
+    //         this.setState(ClockState.RUNNING);
+    //         this._startTime = Date.now();
+    //     }
+    //     if(isPaused===null){
+    //         this.setState(ClockState.STOPPED);
+    //     }
+    //     this.refreshUI();
+
+    // }
+
+
+
+    private refreshCmd(){
         if(this.clockStatusBarItem==null)
             return;
 
@@ -276,7 +303,7 @@ export class Clock {
         // Create a status bar item
         // clockStatusBarItem.command = 'extension.showClock';
         
-        this.pause(false);
+        this.setState(ClockState.RUNNING);
         this._interval = setInterval(() => this.refreshUI(), 1000);//TODO there is a drift here, use time stamp and use this only for refresh not counting 
         this.refreshUI();
         if(this.clockStatusBarItem==null){
