@@ -3,6 +3,7 @@ import * as fs from 'fs';
 import * as path from 'path';
 import simpleGit, { SimpleGit } from 'simple-git';
 import { create } from 'domain';
+import { Clock } from './clock';
 
 // command to build: vsce package
 // command to install: code --install-extension time-analytics-0.0.1.vsix
@@ -36,6 +37,7 @@ let changeEditorEvent:vscode.Disposable;
 let promptResumeEvent:vscode.Disposable;
 
 let hasResponded: boolean|null =null;
+let clock: Clock|null = null;
 
 
 const COMMON_PACKAGE_NAME = "src\\main\\java\\com\\siemens\\iess\\";
@@ -84,13 +86,15 @@ export async function activate(context: vscode.ExtensionContext) {
  
 
 
-
+    clock = new Clock(context);
     startExtension();
     
 
 }
 function resumeTracking(){
     isPaused = false;
+    clock?.pause(false);
+
     // startTimeTracking();
 }
 
@@ -112,6 +116,9 @@ function startExtension(){
 	fs.appendFileSync(summaryFilePath, `\n[${getTime()}] started a new logging session:\n`);
 	fs.appendFileSync(logFilePath, `\n[${getTime()}] started a new logging session:\n`);
 	fs.appendFileSync(gitBranchesFilePath, `\n[${getTime()}] started a new logging session:\n`);
+
+    clock?.activate();
+
 
     
     isPaused = false;
@@ -254,7 +261,8 @@ function getTime(){
 }
 
 export function deactivate() {
-
+    clock?.stop();
+    clock?.dispose();
     changeEditorEvent.dispose();
     if(isPaused===false){
 
@@ -265,6 +273,7 @@ export function deactivate() {
 
 function pause(){
     isPaused = true;
+    clock?.pause(true);
     stopTracking();
 	stopBranchTracking(null);
     writeSummary();
@@ -274,6 +283,7 @@ function pause(){
 
 function resumeLogging(){
     isPaused = false;
+    // clock?.pause(false);
     showMsg(`resumed logging session, saving to ${logDir}`);
 
 }
