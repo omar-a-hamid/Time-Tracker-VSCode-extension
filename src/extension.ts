@@ -4,6 +4,7 @@ import * as path from 'path';
 import simpleGit, { SimpleGit } from 'simple-git';
 import { create } from 'domain';
 import { Clock, ClockState } from './clock';
+import { Secret } from './secret';
 
 // command to build: vsce package
 // command to install: code --install-extension time-analytics-0.0.1.vsix
@@ -45,7 +46,7 @@ let prevState: ClockState|null = null;
 
 
 
-const COMMON_PACKAGE_NAME = "src\\main\\java\\com\\siemens\\iess\\";
+const COMMON_PACKAGE_NAME = Secret.COMMON_PACKAGE_NAME;
 
 
 export async function activate(context: vscode.ExtensionContext) {
