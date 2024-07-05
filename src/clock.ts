@@ -1,18 +1,21 @@
 import * as vscode from 'vscode';
 
 
-const STOP_ICON: string = "$(debug-stop)";
-const PAUSE_ICON = "$(debug-pause)";
-const START_ICON = "$(debug-start)";
+const STOP_ICON   = "$(debug-stop)";
+const PAUSE_ICON  = "$(debug-pause)";
+const START_ICON  = "$(debug-start)";
+const RESUME_ICON = "$(debug-continue)";//
 
-const START_TOOL_TIP = "start timer";
-const PAUSE_TOOL_TIP = "pause timer";
+
+const START_TOOL_TIP  = "start timer";
+const PAUSE_TOOL_TIP  = "pause timer";
 const RESUME_TOOL_TIP = "resume timer";
+const STOP_TOOL_TIP   = "stop timer";
 
 
 let _instance: null|Clock = null;
 
-enum ClockState {
+export enum ClockState {
     RUNNING,
     PAUSED,
     STOPPED
@@ -31,15 +34,18 @@ export class Clock {
 
     private clockStatusBarItem: vscode.StatusBarItem | null = null;
 
-    // private clockPauseBarItem: vscode.StatusBarItem | null = null;
-    // private clockStartBarItem: vscode.StatusBarItem | null = null;
-    // private clockStopBarItem: vscode.StatusBarItem | null = null;
+    private clockPauseBarItem: vscode.StatusBarItem | null = null;
+    private clockStartBarItem: vscode.StatusBarItem | null = null;
+    private clockStopBarItem: vscode.StatusBarItem | null = null;
+    private clockResumeBarItem: vscode.StatusBarItem | null = null;
+
 
 
     private elapsedTime: number =0;
     private beforePausedTime:number = 0;
 
     private clockState: ClockState = ClockState.STOPPED;
+    private prevState: ClockState|null = null; 
 
     constructor() {
         if(_instance!=null){
@@ -55,18 +61,48 @@ export class Clock {
         
 
         this.clockStatusBarItem = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Right, -100);
-        // this.clockPauseBarItem = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Right, -99);
-        // this.clockStartBarItem = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Right, -99);
-        // this.clockStopBarItem = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Right, -98);
+        this.clockStatusBarItem.show();
+        
+        this.initButtons();
+
+
 
         // this.clockStatusBarItem.command()
       
-        this.clockStatusBarItem.command= "extension.startTracking";
+        // this.clockStatusBarItem.command= "extension.startTracking";
         
         
 
         this.refreshUI();
-        this.refreshCmd();
+        // this.refreshCmd();
+        
+    }
+
+
+    initButtons(){
+        this.clockPauseBarItem = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Right, -99);
+        this.clockPauseBarItem.command = "extension.pauseTracking";
+        this.clockPauseBarItem.text = PAUSE_ICON;
+        this.clockPauseBarItem.tooltip = PAUSE_TOOL_TIP;
+
+        this.clockStartBarItem = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Right, -99);
+        this.clockStartBarItem.command = "extension.startTracking";
+        this.clockStartBarItem.text = START_ICON;
+        this.clockStartBarItem.tooltip = START_TOOL_TIP;
+        
+
+
+        this.clockResumeBarItem = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Right, -99);
+        this.clockResumeBarItem.command = "extension.resumeTracking";
+        this.clockResumeBarItem.text = RESUME_ICON;
+        this.clockResumeBarItem.tooltip = RESUME_TOOL_TIP;
+
+
+        this.clockStopBarItem = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Right, -98);
+        this.clockStopBarItem.command = "extension.stopTracking";
+        this.clockStopBarItem.text = STOP_ICON;
+        this.clockStopBarItem.tooltip = STOP_TOOL_TIP;
+
     }
 
     dispose() {
@@ -81,20 +117,68 @@ export class Clock {
         if(this.clockStatusBarItem==null){
             this.clockStatusBarItem = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Right, -100);
         }
-        if(this._isPaused===false){
+        if(this.clockState===ClockState.RUNNING){
             
             this.updateElapsedTime();
         }
         // this._counter++;
         
         // const icon = this._isPaused?"$(debug-start)":"$(debug-pause)";
-        const icon = this.getIcon();
+        // const icon = this.getIcon();
 
-        this.clockStatusBarItem.text = `${icon}  ${this.msToTime(this.elapsedTime)}`;
-        this.clockStatusBarItem.tooltip = this.getToolTip();
-        this.clockStatusBarItem.show();
+        this.clockStatusBarItem.text = `${this.msToTime(this.elapsedTime)}`;
+        // this.clockStatusBarItem.tooltip = this.getToolTip();
+        // this.clockStatusBarItem.show();
+        this.refreshButtons();
 
         
+    }
+    refreshButtons() {
+
+        if(this.prevState === this.clockState){
+            return;
+        }
+        this.prevState = this.clockState; 
+
+        
+
+        switch(this.clockState){
+
+            case ClockState.RUNNING: 
+                this.clockResumeBarItem?.hide();
+                this.clockStartBarItem?.hide();
+                this.clockPauseBarItem?.show();
+                this.clockStopBarItem?.show();
+
+
+                
+                break;
+            case ClockState.PAUSED: 
+                this.clockPauseBarItem?.hide();
+                this.clockStartBarItem?.hide();
+                this.clockResumeBarItem?.show();
+                this.clockStopBarItem?.show();
+                
+                break;
+
+            case ClockState.STOPPED:
+                this.clockPauseBarItem?.hide();
+                this.clockResumeBarItem?.hide();
+                this.clockStopBarItem?.hide();
+                this.clockStartBarItem?.show();
+                
+                break;
+        }
+
+        
+    }
+
+    hideAllButtons(){
+        
+        this.clockPauseBarItem?.hide();
+        this.clockStartBarItem?.hide();
+        this.clockResumeBarItem?.hide();
+        this.clockStopBarItem?.hide();
     }
     getToolTip(): string {
         let toolTip = "";
@@ -122,7 +206,7 @@ export class Clock {
         this.elapsedTime = 0
         this.pause(null);
         if (this.clockStatusBarItem) {
-            this.clockStatusBarItem.text = "$(debug-start)" + this.msToTime(0);
+            this.clockStatusBarItem.text = this.msToTime(0);
         }
         this.clockStatusBarItem?.show();
         this.elapsedTime = 0;
@@ -142,8 +226,6 @@ export class Clock {
         }
 
         this._isPaused = isPaused;
-        this.refreshUI();
-        this.refreshCmd();
         if(isPaused===true){
             this.setState(ClockState.PAUSED);
             this._startTime = null;
@@ -158,6 +240,8 @@ export class Clock {
         if(isPaused===null){
             this.setState(ClockState.STOPPED);
         }
+        this.refreshUI();
+
     }
 
     refreshCmd(){
@@ -194,12 +278,11 @@ export class Clock {
         
         this.pause(false);
         this._interval = setInterval(() => this.refreshUI(), 1000);//TODO there is a drift here, use time stamp and use this only for refresh not counting 
-        this.refreshCmd();
+        this.refreshUI();
         if(this.clockStatusBarItem==null){
             this.clockStatusBarItem = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Right, -100);
         }
         this._startTime = Date.now();
-        this.clockStatusBarItem.text = 'Clock';
         this.clockStatusBarItem.show();
 
         // Register the command to show the clock
@@ -223,10 +306,30 @@ export class Clock {
         return hoursStr + ":" + minutesStr + ":" + secondsStr;
     }
 
-    getIcon(): string{
+    // getIcon(): string{
 
+    //     let icon = "";
+    //     switch(this.clockState){
+    //         case ClockState.RUNNING: 
+    //             icon = PAUSE_ICON;
+    //             break;
+    //         case ClockState.PAUSED: 
+    //             icon = START_ICON;
+    //             break;
+    //         case ClockState.STOPPED:
+    //             icon = STOP_ICON;
+    //             break;
+    //     }
+    //     return icon;
+
+    // }
+
+    // getIcon(): string;
+    getIcon(state? :ClockState|undefined): string{//TODO this is bad, as one retrvies the needed to dispaly another the represnting one conflict
+
+        
         let icon = "";
-        switch(this.clockState){
+        switch(state??this.clockState){
             case ClockState.RUNNING: 
                 icon = PAUSE_ICON;
                 break;
