@@ -15,6 +15,52 @@
   ],
   "main": "./out/extension.js",
   "contributes": {
+    "configuration":{
+      "title": "Time Analytics",
+      "properties": {
+        "timeThreshold.pause":{
+          "type": "number",
+          "default": 10,
+          "description": "Pause time tracking for sleep periods above this time threshold (secs)"
+        },
+        "timeThreshold.stop":{
+          "type": "number",
+          "default": 3600,
+          "description": "Stop time tracking for sleep periods above this time threshold (secs)"
+        },
+        "excludePatterns.files":{
+          "type": "string",
+          "default": "",
+          "description": "exclude this pattern from the files path when logging (current directory is ignored by default)"
+        },
+        "excludePatterns.branches":{
+          "type": "string",
+          "default": "",
+          "description": "exclude this pattern from the branches name when logging (current directory is ignored by default)"
+        },
+        "output.directory":{
+          "type": "string",
+          "default": "time-tracker",
+          "description": "directory to save output log files"
+        },
+        "output.filesLog":{
+          "type": "string",
+          "default": "time-tracker.log",
+          "description": "files log file name"
+        },
+        "output.branchesLog":{
+          "type": "string",
+          "default": "git-branches.log",
+          "description": "branches log file name"
+        },
+        "output.summaryLog":{
+          "type": "string",
+          "default": "time-summary.log",
+          "description": "summary log file name"
+        }
+      }
+    
+    },
     "commands": [
       {
         "command": "extension.stopTracking",

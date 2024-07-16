@@ -1,4 +1,5 @@
 import * as vscode from 'vscode';
+import { lastTimeStamp } from './extension';
 
 
 const STOP_ICON   = "$(debug-stop)";
@@ -12,6 +13,7 @@ const PAUSE_TOOL_TIP  = "pause timer";
 const RESUME_TOOL_TIP = "resume timer";
 const STOP_TOOL_TIP   = "stop timer";
 
+const CLOCK_REFRESH_RATE = 333;
 
 let _instance: null|Clock = null;
 
@@ -19,6 +21,9 @@ export enum ClockState {
     RUNNING,
     PAUSED,
     STOPPED
+    // ,
+    // INACTIVE_SHORT_PERIOD,
+    // INACTIVE_LONG_PERIOD
 }
  
 export class Clock {
@@ -144,8 +149,9 @@ export class Clock {
         
     }
 
-    updateElapsedTime(){
-        this.elapsedTime = this.beforePausedTime + (Date.now() - ((this._startTime)??Date.now()));
+    updateElapsedTime(){//TODO you may add here using the same time stamp as from tick()
+      
+        this.elapsedTime = this.beforePausedTime + (lastTimeStamp - ((this._startTime)??lastTimeStamp));
     }
 
 
@@ -190,19 +196,19 @@ export class Clock {
     }
 
     private resume(){
-        this._startTime = Date.now();
+        this._startTime = lastTimeStamp;
     }
 
 
     activate() {
         
         this.setState(ClockState.RUNNING);
-        this._interval = setInterval(() => this.refreshUI(), 1000);//TODO there is a drift here, use time stamp and use this only for refresh not counting 
+        this._interval = setInterval(() => this.refreshUI(), CLOCK_REFRESH_RATE);//TODO there is a drift here, use time stamp and use this only for refresh not counting 
         this.refreshUI();
         if(this.clockStatusBarItem==null){
             this.clockStatusBarItem = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Right, -100);
         }
-        this._startTime = Date.now();
+        this._startTime = lastTimeStamp;
         this.clockStatusBarItem.show();
 
     }

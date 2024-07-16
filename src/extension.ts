@@ -9,6 +9,8 @@ import { Secret } from './secret';
 // command to build: vsce package
 // command to install: code --install-extension time-analytics-0.0.1.vsix
 
+vscode.workspace.getConfiguration('myExtension')
+
 const folderPathArr = vscode.workspace.workspaceFolders;
 const folderPath = folderPathArr?.[0]?.uri.fsPath.concat("\\");
 const logDirName = "time-tracker/";
@@ -18,12 +20,21 @@ const gitBranchesFilePath = path.join(logDir, 'git-branches.log');
 const summaryFilePath = path.join(logDir,'time-summary.log');
 const git: SimpleGit = simpleGit(folderPath);
 
+const SECOND = 1000;
+const MINUTE = 60*SECOND;
+const HOUR   =  60* MINUTE;
+
+const PAUSE_TRACKING_TH = 10*SECOND;
+const STOP_TRACKING_TH  = 1*HOUR;
+
+const TICK_REFRESH_RATE = 333;
+
 let activeFile: string | null = null;
 let startTime: number | null = null;
 let currentBranch: string | null = null;
 let files: { [key: string]: number } = {};
 let branches: { [key: string]: { startTime: number, elapsedTime: number } } = {};
-let intervalId: string | number | NodeJS.Timeout | undefined;
+let gitIntervalId: string | number | NodeJS.Timeout | undefined;
 let intervalId2: string | number | NodeJS.Timeout | undefined;
 let killFlag: boolean = false;
 let createDir: boolean| null = null;
@@ -46,14 +57,20 @@ let prevState: ClockState|null = null;
 
 
 
-const COMMON_PACKAGE_NAME = Secret.COMMON_PACKAGE_NAME;
+const config =  vscode.workspace.getConfiguration('time-analytics');
+const COMMON_PACKAGE_NAME = config.get("excludePatterns.files");
+
+// let elapsedTime: number =0;
+let tickInterval: NodeJS.Timeout|null = null;
+
+export let lastTimeStamp: number  =Date.now();
 
 
 export async function activate(context: vscode.ExtensionContext) {
 
     let disposableStart = vscode.commands.registerCommand('extension.startTracking', () => startExtension());
     let disposable = vscode.commands.registerCommand('extension.pauseTracking', () => pause());
-    let disposableStop = vscode.commands.registerCommand('extension.stopTracking', () => deactivate());
+    let disposableStop = vscode.commands.registerCommand('extension.stopTracking', () => stop());
     let disposableResume = vscode.commands.registerCommand('extension.resumeTracking', () => resumeTracking());
 
     setState(ClockState.STOPPED);
@@ -123,15 +140,13 @@ function setState(state: ClockState):boolean{
     clockState = state;
     prevState = clockState; 
 
-
-
-    clockState = state;
     clock?.setState(state);
+
     return true;
 }
 
 async function promptStart(){
-
+    
     await vscode.window.showWarningMessage(
         'Start time tracking?',
         'Yes',
@@ -139,9 +154,45 @@ async function promptStart(){
     ).then(selectedAction => {
         startLogging = selectedAction === 'Yes';
     });
+    
+    
+}
 
+
+function wakeUpFromShortSleepHandler(){
+    
+    log(`woke up after short inactive period, wrapping up and pausing previous session`);
+    pause();
 
 }
+function wakeUpFromLongSleepHandler(){
+    
+    log(`woke up after long inactive period: wrapping up and stopping previous session`);
+    stop();
+
+}
+
+function updateTimestamp(overrideSleepCheck = false){
+
+    const deltaTime = Date.now() - lastTimeStamp; 
+    if(overrideSleepCheck != true){
+
+        if(deltaTime > STOP_TRACKING_TH ){
+            wakeUpFromLongSleepHandler();
+        }else if(deltaTime > PAUSE_TRACKING_TH){
+            wakeUpFromShortSleepHandler();
+        }
+    }
+    lastTimeStamp = Date.now();
+
+}
+
+function tick(){
+
+    updateTimestamp();
+
+}
+
 async function startExtension(){
 
     const isValid = await validateFolder();
@@ -158,7 +209,9 @@ async function startExtension(){
         // if no change, do nth
         return;
     }
-
+    
+    updateTimestamp(true);
+    tickInterval = setInterval(() => tick(), TICK_REFRESH_RATE);
     
 
     showMsg(`started logging session, saving to ${logDir}`);
@@ -230,7 +283,11 @@ async function trackGitBranch() {
     currentBranch = branch.current;
     log(`Current Git branch: ${currentBranch}`);
     startBranchTracking(currentBranch);
-    intervalId = setInterval(intervalFunction , 10000); // Check every 10 seconds
+    gitIntervalId = setInterval(() => intervalFunction() , 10000); // Check every 10 seconds
+}
+
+function stopGitBranchTracking(){
+
 }
 
 async function intervalFunction(){
@@ -249,23 +306,23 @@ function startBranchTracking(branch: string) {
 	logGitBranches(`Started tracking time for ${branch}`);
 
     if(branches[branch]==null){
-        branches[branch] = { startTime: Date.now(), elapsedTime: 0 };
+        branches[branch] = { startTime: lastTimeStamp, elapsedTime: 0 };
     }else{
-        branches[branch].startTime = Date.now();
+        branches[branch].startTime = lastTimeStamp;
     }
 }
 
-function stopBranchTracking(branch: string | null) {
+function stopBranchTracking(branch: string|null = currentBranch) {
 	if(branch == null){
 		branch = currentBranch??"null";
 	}
     if (branches[branch] && branches[branch].startTime) {
 
-        const elapsedTime = Date.now() - branches[branch].startTime;
-        branches[branch].elapsedTime += Date.now() - branches[branch].startTime;
+        const elapsedTime = lastTimeStamp - branches[branch].startTime;
+        branches[branch].elapsedTime += lastTimeStamp - branches[branch].startTime;
         branches[branch].startTime = 0; // Reset startTime to indicate not tracking
 
-		log(`Stopped tracking time for ${branch}. Elapsed time: ${msToTime( elapsedTime)}`);
+		log(`${branch} [${msToTime( elapsedTime)}]`);
 		logGitBranches(`tracking time for ${branch}. Elapsed time: ${msToTime( elapsedTime)}`);
 
     }
@@ -274,14 +331,14 @@ function stopBranchTracking(branch: string | null) {
 
 function startTracking(file: string) {
     activeFile = file;
-    startTime = Date.now();
+    startTime = lastTimeStamp;
 }
 
-function stopTracking() {
+function stopTracking(stopFromTS: number = lastTimeStamp) {
     if (activeFile) {
-        const endTime = Date.now();
+        const endTime = stopFromTS;
         const elapsedTime = endTime - (startTime ?? endTime);
-        log(`Stopped tracking time for ${activeFile}. Elapsed time: ${msToTime(elapsedTime)}`);
+        log(`${activeFile}  [${msToTime(elapsedTime)}]`);
         if (files[activeFile]) {
             files[activeFile] += elapsedTime;
         } else {
@@ -316,6 +373,10 @@ function log(message: string) {
 
 function getTime(){
     return new Date().toLocaleString();
+}
+
+function stop(){
+    deactivate();
 }
 
 export function deactivate() {
@@ -356,7 +417,7 @@ function finalize(){
 function finalizeBranchTracking(){
 
     branches = {};
-    clearInterval(intervalId);
+    clearInterval(gitIntervalId);
 
 }
 
