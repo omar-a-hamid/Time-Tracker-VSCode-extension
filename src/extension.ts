@@ -9,30 +9,39 @@ import { Clock, ClockState } from './clock';
 // command to build: vsce package
 // command to install: code --install-extension time-analytics-0.0.1.vsix
 
+//#region environment
 
-const config =  vscode.workspace.getConfiguration('time-analytics');
+let config =  vscode.workspace.getConfiguration('time-analytics');
 
-const ENV_USE_RELATIVE_PATH:boolean = config.output.useRelativePath;
+let ENV_USE_RELATIVE_PATH:boolean = config.output.useRelativePath;
 
-const folderPathArr = vscode.workspace.workspaceFolders;
-const folderPath = folderPathArr?.[0]?.uri.fsPath.concat("\\");
-const logDirName:string = config.output.directory+"/";
-const logDir = path.join(ENV_USE_RELATIVE_PATH?folderPath??"":"",logDirName);
-const logFilePath = path.join( logDir,config.output.filesLog);
-const gitBranchesFilePath = path.join(logDir, config.output.branchesLog);
-const summaryFilePath = path.join(logDir,config.output.summaryLog);
+let folderPathArr = vscode.workspace.workspaceFolders;
+let folderPath = folderPathArr?.[0]?.uri.fsPath.concat("\\");
+let logDirName:string = config.output.directory+"/";
+let logDir = path.join(ENV_USE_RELATIVE_PATH?folderPath??"":"",logDirName);
+let logFilePath = path.join( logDir,config.output.filesLog);
+let gitBranchesFilePath = path.join(logDir, config.output.branchesLog);
+let summaryFilePath = path.join(logDir,config.output.summaryLog);
+
+
+
+
+let TICK_REFRESH_RATE = config.refreshRate;
+
+let ENV_EXCLUDE_PATH:boolean = config.excludePatterns.currentPath;
+
+let ENV_EXCLUDE_FROM_FILE_NAME = config.excludePatterns.files;
+let ENV_EXCLUDE_FROM_BRANCH_NAME = config.excludePatterns.branches;
+//#endregion
+
 const git: SimpleGit = simpleGit(folderPath);
 
 const SECOND = 1000;
 const MINUTE = 60*SECOND;
 const HOUR   =  60* MINUTE;
 
-const PAUSE_TRACKING_TH = config.timeThreshold.pause*SECOND;
-const STOP_TRACKING_TH  = config.timeThreshold.stop*SECOND;
-
-const TICK_REFRESH_RATE = config.refreshRate;
-
-const ENV_EXCLUDE_PATH:boolean = config.excludePatterns.currentPath;
+let PAUSE_TRACKING_TH = config.timeThreshold.pause*SECOND;
+let STOP_TRACKING_TH  = config.timeThreshold.stop*SECOND;
 
 let activeFile: string | null = null;
 let startTime: number | null = null;
@@ -62,19 +71,37 @@ let prevState: ClockState|null = null;
 
 
 
-// const COMMON_PACKAGE_NAME:string = config.excludePatterns.files;
-const ENV_EXCLUDE_FROM_FILE_NAME = config.excludePatterns.files;
-const ENV_EXCLUDE_FROM_BRANCH_NAME = config.excludePatterns.branches;
-
 
 // let elapsedTime: number =0;
 let tickInterval: NodeJS.Timeout|null = null;
 
 export let lastTimeStamp: number  =Date.now();
 
+function initVars(){
+    config =  vscode.workspace.getConfiguration('time-analytics');
+    ENV_USE_RELATIVE_PATH = config.output.useRelativePath;
+    
+    folderPathArr = vscode.workspace.workspaceFolders;
+    folderPath = folderPathArr?.[0]?.uri.fsPath.concat("\\");
+    logDirName = config.output.directory+"/";
+    logDir = path.join(ENV_USE_RELATIVE_PATH?folderPath??"":"",logDirName);
+    logFilePath = path.join( logDir,config.output.filesLog);
+    gitBranchesFilePath = path.join(logDir, config.output.branchesLog);
+    summaryFilePath = path.join(logDir,config.output.summaryLog);
+    
+    
+    TICK_REFRESH_RATE = config.refreshRate;
+    
+    ENV_EXCLUDE_PATH = config.excludePatterns.currentPath;
+    
+    ENV_EXCLUDE_FROM_FILE_NAME = config.excludePatterns.files;
+    ENV_EXCLUDE_FROM_BRANCH_NAME = config.excludePatterns.branches;
 
+    PAUSE_TRACKING_TH = config.timeThreshold.pause*SECOND;
+    STOP_TRACKING_TH  = config.timeThreshold.stop*SECOND;
+}
 export async function activate(context: vscode.ExtensionContext) {
-
+    
     let disposableStart = vscode.commands.registerCommand('extension.startTracking', () => startExtension());
     let disposable = vscode.commands.registerCommand('extension.pauseTracking', () => pause());
     let disposableStop = vscode.commands.registerCommand('extension.stopTracking', () => stop());
@@ -219,6 +246,7 @@ async function startExtension(){
         // if no change, do nth
         return;
     }
+    initVars();
     
     updateTimestamp(true);
     tickInterval = setInterval(() => tick(), TICK_REFRESH_RATE);
