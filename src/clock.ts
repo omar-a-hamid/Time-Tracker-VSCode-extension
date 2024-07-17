@@ -13,7 +13,7 @@ const PAUSE_TOOL_TIP  = "pause timer";
 const RESUME_TOOL_TIP = "resume timer";
 const STOP_TOOL_TIP   = "stop timer";
 
-const CLOCK_REFRESH_RATE = 333;
+const CLOCK_REFRESH_RATE = vscode.workspace.getConfiguration('time-analytics').refreshRate;
 
 let _instance: null|Clock = null;
 

@@ -4,30 +4,35 @@ import * as path from 'path';
 import simpleGit, { SimpleGit } from 'simple-git';
 import { create } from 'domain';
 import { Clock, ClockState } from './clock';
-import { Secret } from './secret';
+
 
 // command to build: vsce package
 // command to install: code --install-extension time-analytics-0.0.1.vsix
 
-vscode.workspace.getConfiguration('myExtension')
+
+const config =  vscode.workspace.getConfiguration('time-analytics');
+
+const ENV_USE_RELATIVE_PATH:boolean = config.output.useRelativePath;
 
 const folderPathArr = vscode.workspace.workspaceFolders;
 const folderPath = folderPathArr?.[0]?.uri.fsPath.concat("\\");
-const logDirName = "time-tracker/";
-const logDir = path.join(folderPath??"",logDirName);
-const logFilePath = path.join( logDir,'time-tracker.log');
-const gitBranchesFilePath = path.join(logDir, 'git-branches.log');
-const summaryFilePath = path.join(logDir,'time-summary.log');
+const logDirName:string = config.output.directory+"/";
+const logDir = path.join(ENV_USE_RELATIVE_PATH?folderPath??"":"",logDirName);
+const logFilePath = path.join( logDir,config.output.filesLog);
+const gitBranchesFilePath = path.join(logDir, config.output.branchesLog);
+const summaryFilePath = path.join(logDir,config.output.summaryLog);
 const git: SimpleGit = simpleGit(folderPath);
 
 const SECOND = 1000;
 const MINUTE = 60*SECOND;
 const HOUR   =  60* MINUTE;
 
-const PAUSE_TRACKING_TH = 10*SECOND;
-const STOP_TRACKING_TH  = 1*HOUR;
+const PAUSE_TRACKING_TH = config.timeThreshold.pause*SECOND;
+const STOP_TRACKING_TH  = config.timeThreshold.stop*SECOND;
 
-const TICK_REFRESH_RATE = 333;
+const TICK_REFRESH_RATE = config.refreshRate;
+
+const ENV_EXCLUDE_PATH:boolean = config.excludePatterns.currentPath;
 
 let activeFile: string | null = null;
 let startTime: number | null = null;
@@ -57,8 +62,10 @@ let prevState: ClockState|null = null;
 
 
 
-const config =  vscode.workspace.getConfiguration('time-analytics');
-const COMMON_PACKAGE_NAME = config.get("excludePatterns.files");
+// const COMMON_PACKAGE_NAME:string = config.excludePatterns.files;
+const ENV_EXCLUDE_FROM_FILE_NAME = config.excludePatterns.files;
+const ENV_EXCLUDE_FROM_BRANCH_NAME = config.excludePatterns.branches;
+
 
 // let elapsedTime: number =0;
 let tickInterval: NodeJS.Timeout|null = null;
@@ -80,6 +87,9 @@ export async function activate(context: vscode.ExtensionContext) {
     context.subscriptions.push(disposableResume);
     context.subscriptions.push(disposableStart);
     context.subscriptions.push(changeEditorEvent);
+
+
+
 
     clock = new Clock();
 
@@ -241,9 +251,37 @@ function startTimeTracking(){
 
 
 }
+function removePatternFromBranchName(str: string|undefined):string|null{
+    if(str === undefined)
+        return null;
+    return removeArrayFromString(str, ENV_EXCLUDE_FROM_BRANCH_NAME);
+}
+
+function removePatternFromFileName(str: string|undefined):string|null{
+    if(str === undefined)
+        return null;
+    return removeArrayFromString(str, ENV_EXCLUDE_FROM_FILE_NAME);
+}
+function removeArrayFromString(str: string, array: string[]): string{
+
+    const escapedArray = array.map(s => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'));
+    const pattern = escapedArray.join('|');
+    const regex = new RegExp(pattern, 'g');
+    
+    return str.replace(regex, '');
+
+}
 
 function getCurrentFile():string|null{
-    return vscode.window.activeTextEditor?.document.fileName.replace(String(folderPath),"").replace(COMMON_PACKAGE_NAME,"")??null;
+
+    let fileName =  vscode.window.activeTextEditor?.document.fileName;
+    if(fileName===undefined)
+        return null;
+    if(ENV_EXCLUDE_PATH===true){
+        fileName = fileName.replace(String(folderPath),"")
+    }
+
+    return removePatternFromFileName(fileName);
 }
 
 
@@ -293,9 +331,10 @@ function stopGitBranchTracking(){
 async function intervalFunction(){
     const newBranch = await git.branchLocal();
     if (newBranch.current !== currentBranch) {
-        log(`Switched to branch ${newBranch.current}`);
+        let newBranchDisplayName = removePatternFromBranchName(newBranch.current)??"null";
+        log(`Switched to branch ${newBranchDisplayName}`);
         stopBranchTracking(currentBranch);
-        currentBranch = newBranch.current;
+        currentBranch = newBranchDisplayName;
         startBranchTracking(currentBranch);
     }
 
@@ -399,8 +438,9 @@ function pause(){
     if(!setState(ClockState.PAUSED)){
         return;
     }
+    clearInterval(gitIntervalId);
     stopTracking();
-	stopBranchTracking(null);
+	stopBranchTracking();
     writeSummary();
     finalize();
     showMsg(`paused logging session, saving to ${logDir}`);
@@ -417,7 +457,7 @@ function finalize(){
 function finalizeBranchTracking(){
 
     branches = {};
-    clearInterval(gitIntervalId);
+    // clearInterval(gitIntervalId);
 
 }
 

@@ -1,8 +1,9 @@
 {
   "name": "time-analytics",
   "displayName": "Time Analytics",
-  "description": "",
-  "version": "0.0.1",
+  "description": "Time tracker to track files and git branches you are actively working on, and saves the results in a log file",
+  "icon": "resources/icon.jpg",
+  "version": "1.0.0",
   "engines": {
     "vscode": "^1.89.0"
   },
@@ -18,45 +19,65 @@
     "configuration":{
       "title": "Time Analytics",
       "properties": {
-        "timeThreshold.pause":{
+        "time-analytics.timeThreshold.pause":{
           "type": "number",
           "default": 10,
           "description": "Pause time tracking for sleep periods above this time threshold (secs)"
         },
-        "timeThreshold.stop":{
+        "time-analytics.timeThreshold.stop":{
           "type": "number",
           "default": 3600,
           "description": "Stop time tracking for sleep periods above this time threshold (secs)"
         },
-        "excludePatterns.files":{
-          "type": "string",
-          "default": "",
+        "time-analytics.excludePatterns.currentPath":{
+          "type": "boolean",
+          "default": true,
+          "description": "exclude the current path from the files path when logging"
+        },
+        "time-analytics.excludePatterns.files":{
+          "type": "array",
+          "items": {
+                        "type": "string"
+                    },
+          "default": [""],
           "description": "exclude this pattern from the files path when logging (current directory is ignored by default)"
         },
-        "excludePatterns.branches":{
-          "type": "string",
-          "default": "",
+        "time-analytics.excludePatterns.branches":{
+          "type": "array",
+          "items": {
+                        "type": "string"
+                    },
+          "default": [""],
           "description": "exclude this pattern from the branches name when logging (current directory is ignored by default)"
+        },"time-analytics.output.useRelativePath":{
+          "type": "boolean",
+          "default": true,
+          "description": "use relative path of current workspace for logging files"
         },
-        "output.directory":{
+        "time-analytics.output.directory":{
           "type": "string",
           "default": "time-tracker",
           "description": "directory to save output log files"
         },
-        "output.filesLog":{
+        "time-analytics.output.filesLog":{
           "type": "string",
           "default": "time-tracker.log",
           "description": "files log file name"
         },
-        "output.branchesLog":{
+        "time-analytics.output.branchesLog":{
           "type": "string",
           "default": "git-branches.log",
           "description": "branches log file name"
         },
-        "output.summaryLog":{
+        "time-analytics.output.summaryLog":{
           "type": "string",
           "default": "time-summary.log",
           "description": "summary log file name"
+        },
+        "time-analytics.refreshRate":{
+          "type": "number",
+          "default": 333,
+          "description": "refresh rate of tracker in ms"
         }
       }
     
